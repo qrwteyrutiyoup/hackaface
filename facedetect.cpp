@@ -27,8 +27,8 @@ void detectAndDraw( Mat& img,
                    CascadeClassifier& cascade, CascadeClassifier& nestedCascade,
                    double scale);
 
-String cascadeName = "../../data/haarcascades/haarcascade_frontalface_alt.xml";
-String nestedCascadeName = "../../data/haarcascades/haarcascade_eye_tree_eyeglasses.xml";
+String cascadeName = "filter.xml";
+String nestedCascadeName = "nested-filter.xml";
 
 int main( int argc, const char** argv )
 {
@@ -180,13 +180,17 @@ _cleanup_:
     return 0;
 }
 
-void detectAndDraw( Mat& img,
+void detectAndDraw( Mat& img, // <- aqui eh passado
                    CascadeClassifier& cascade, CascadeClassifier& nestedCascade,
                    double scale)
 {
     int i = 0;
     double t = 0;
-    vector<Rect> faces;
+    vector<Rect> faces; // <- o que a gnte quer
+    char filename[128];
+    static int filename_count = 0;
+    int radius;
+
     const static Scalar colors[] =  { CV_RGB(0,0,255),
         CV_RGB(0,128,255),
         CV_RGB(0,255,255),
@@ -195,6 +199,11 @@ void detectAndDraw( Mat& img,
         CV_RGB(255,255,0),
         CV_RGB(255,0,0),
         CV_RGB(255,0,255)} ;
+        
+    vector<int> compression_params;
+    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+    compression_params.push_back(9);
+ 
     Mat gray, smallImg( cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC1 );
 
     cvtColor( img, gray, CV_BGR2GRAY );
@@ -202,6 +211,7 @@ void detectAndDraw( Mat& img,
     equalizeHist( smallImg, smallImg );
 
     t = (double)cvGetTickCount();
+    //aqui detecta e coloca no faces, que é um array de retangulos. yep
     cascade.detectMultiScale( smallImg, faces,
         1.1, 2, 0
         //|CV_HAAR_FIND_BIGGEST_OBJECT
@@ -211,19 +221,29 @@ void detectAndDraw( Mat& img,
         Size(30, 30) );
     t = (double)cvGetTickCount() - t;
     printf( "detection time = %g ms\n", t/((double)cvGetTickFrequency()*1000.) );
-    for( vector<Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++ )
+    for(vector<Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++ )
     {
         Mat smallImgROI;
         vector<Rect> nestedObjects;
         Point center;
         Scalar color = colors[i%8];
-        int radius;
+        
         center.x = cvRound((r->x + r->width*0.5)*scale);
         center.y = cvRound((r->y + r->height*0.5)*scale);
         radius = cvRound((r->width + r->height)*0.25*scale);
+        
+        if (radius != 4203968) {
+          sprintf(filename, "%d.png", ++filename_count);
+          printf("filename: %s\n", filename);
+          cv::imwrite(filename, img, compression_params);
+
+        }
+        
         circle( img, center, radius, color, 3, 8, 0 );
+
         if( nestedCascade.empty() )
             continue;
+
         smallImgROI = smallImg(*r);
         nestedCascade.detectMultiScale( smallImgROI, nestedObjects,
             1.1, 2, 0
@@ -239,7 +259,8 @@ void detectAndDraw( Mat& img,
             center.y = cvRound((r->y + nr->y + nr->height*0.5)*scale);
             radius = cvRound((nr->width + nr->height)*0.25*scale);
             circle( img, center, radius, color, 3, 8, 0 );
-        }
+        } 
+        
     }
     cv::imshow( "result", img );
 }
